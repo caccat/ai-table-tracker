@@ -23,6 +23,9 @@ const SITE_ALIAS_MAP = {
   "ncwb.cn": "邢台网",
   "邢台广播电视台官方网站": "邢台网",
   "邢台广播电视台": "邢台网",
+  "网易新闻客户端": "网易",
+  "手机网易网": "网易",
+  "手机搜狐网": "搜狐",
 };
 
 /** 将网站名归一化为标准名称 */
@@ -382,14 +385,16 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
   ps[platform].newSitesData = newSites;
   ps[platform].retestAppearData = retestAppear;
 
-  // ===== Section 1: 频次统计 =====
-  html += `<div class="section-title">
+  // ===== Section 1: 频次统计（默认折叠）=====
+  html += `<div class="section-title collapsible" id="freqToggle-${platform}">
+    <span class="toggle-arrow">▶</span>
     <span class="badge freq">📊</span> 频次统计（≥10次）
     <span class="section-badge">共 ${freqGte10.length} 个网站</span>
-    <button class="copy-btn" id="copyFreqBtn-${platform}" style="margin-left:auto;">📋 一键复制</button>
+    <button class="copy-btn" id="copyFreqBtn-${platform}" style="margin-left:auto;" onclick="event.stopPropagation()">📋 一键复制</button>
     <span id="copyMsg-${platform}" style="font-size:11px;color:#10b981;display:none;margin-left:6px;">已复制!</span>
   </div>`;
 
+  html += `<div class="collapsible-body" id="freqBody-${platform}" style="display:none;">`;
   if (freqGte10.length === 0) {
     html += `<div class="no-data" style="padding:20px;">暂无 ≥10 次的网站</div>`;
   } else {
@@ -402,6 +407,7 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
     });
     html += `</tbody></table></div>`;
   }
+  html += `</div>`;
 
   // ===== Section 2: 二测监督 =====
   if (retestAppear.length > 0) {
@@ -496,6 +502,18 @@ function renderUrlList(urlMap, limit) {
 
 // ==================== 事件绑定 ====================
 function bindPlatformEvents(platform) {
+  // 频次统计折叠/展开
+  const freqToggle = document.getElementById(`freqToggle-${platform}`);
+  const freqBody = document.getElementById(`freqBody-${platform}`);
+  if (freqToggle && freqBody) {
+    freqToggle.addEventListener("click", () => {
+      const isOpen = freqBody.style.display !== "none";
+      freqBody.style.display = isOpen ? "none" : "block";
+      const arrow = freqToggle.querySelector(".toggle-arrow");
+      if (arrow) arrow.textContent = isOpen ? "▶" : "▼";
+    });
+  }
+
   // 复制按钮
   const copyBtn = document.getElementById(`copyFreqBtn-${platform}`);
   if (copyBtn) copyBtn.addEventListener("click", () => copyFreq(platform));
