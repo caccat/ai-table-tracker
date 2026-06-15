@@ -59,19 +59,32 @@
     .btn-xs{padding:2px 7px;font-size:10px;border-radius:4px}
 
     /* Result Area */
-    .result-area{border:1px solid #e8ebf0;border-radius:10px;min-height:200px;background:#fafbfc;overflow:hidden}
+    .result-area{display:flex;flex-direction:column;gap:20px;min-height:200px}
 
-    /* Section */
-    .section-title{font-size:14px;font-weight:600;color:#333;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #4f6ef7;display:flex;align-items:center;gap:8px}
-    .section-title .badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500;color:#fff}
-    .section-title .badge.freq{background:#4f6ef7}
-    .section-title .badge.retest{background:#f59e0b}
-    .section-title .badge.new{background:#10b981}
-    .section-badge{font-size:11px;color:#888;font-weight:400}
+    /* ===== Section Cards (Morandi) ===== */
+    .section-card{border-radius:14px;padding:20px 22px;border:1px solid transparent;transition:box-shadow .2s}
+    .section-card:hover{box-shadow:0 2px 16px rgba(0,0,0,0.04)}
+
+    .card-freq{background:#eef1f5;border-color:#dde2ea}
+    .card-retest{background:#f5f0e8;border-color:#ebe3d5}
+    .card-new{background:#edf1eb;border-color:#dae0d6}
+
+    /* Section Title (inside cards) */
+    .section-title{font-size:14px;font-weight:600;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;align-items:center;gap:8px}
+    .card-freq .section-title{color:#566c86}
+    .card-retest .section-title{color:#8c7a5e}
+    .card-new .section-title{color:#5f7558}
+
+    .section-title .badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600}
+    .section-title .badge::before{font-size:14px}
+    .card-freq .section-title .badge{color:#566c86}
+    .card-retest .section-title .badge{color:#8c7a5e}
+    .card-new .section-title .badge{color:#5f7558}
+    .section-badge{font-size:11px;color:rgba(0,0,0,0.35);font-weight:400}
 
     .section-title.collapsible{cursor:pointer;user-select:none;border-radius:6px;transition:background .15s}
-    .section-title.collapsible:hover{background:#f6f7fa}
-    .toggle-arrow{font-size:10px;color:#999;width:12px;display:inline-block;transition:transform .15s}
+    .section-title.collapsible:hover{background:rgba(0,0,0,0.03)}
+    .toggle-arrow{font-size:10px;opacity:0.5;width:12px;display:inline-block}
     .collapsible-body{animation:fadeIn .2s}
     @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 
@@ -86,11 +99,11 @@
     .stat-purple{background:#f5f3ff}.stat-purple .num{color:#8b5cf6}
 
     /* Tables */
-    .table-wrap{border-radius:8px;border:1px solid #e8ebf0;overflow-x:auto;margin-bottom:12px}
+    .table-wrap{border-radius:10px;border:1px solid rgba(0,0,0,0.06);overflow-x:auto;margin-bottom:0}
     .data-table{width:100%;border-collapse:collapse;font-size:12px}
-    .data-table thead th{background:#f8f9fb;padding:10px 12px;text-align:left;font-weight:600;color:#555;border-bottom:2px solid #e8ebf0;white-space:nowrap}
-    .data-table tbody td{padding:8px 12px;border-bottom:1px solid #f0f1f3;vertical-align:middle}
-    .data-table tbody tr:hover{background:#fafbfd}
+    .data-table thead th{background:rgba(255,255,255,0.6);padding:10px 12px;text-align:left;font-weight:600;color:#777;border-bottom:1px solid rgba(0,0,0,0.06);white-space:nowrap}
+    .data-table tbody td{padding:8px 12px;border-bottom:1px solid rgba(0,0,0,0.04);vertical-align:middle}
+    .data-table tbody tr:hover{background:rgba(255,255,255,0.5)}
     .data-table tbody tr:last-child td{border-bottom:none}
     .data-table .num{text-align:center;font-weight:600}
     .data-table .url-cell{max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

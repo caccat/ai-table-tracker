@@ -386,15 +386,16 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
   ps[platform].retestAppearData = retestAppear;
 
   // ===== Section 1: 频次统计（默认折叠）=====
-  html += `<div class="section-title collapsible" id="freqToggle-${platform}">
-    <span class="toggle-arrow">▶</span>
-    <span class="badge freq">📊</span> 频次统计（≥10次）
-    <span class="section-badge">共 ${freqGte10.length} 个网站</span>
-    <button class="copy-btn" id="copyFreqBtn-${platform}" style="margin-left:auto;" onclick="event.stopPropagation()">📋 一键复制</button>
-    <span id="copyMsg-${platform}" style="font-size:11px;color:#10b981;display:none;margin-left:6px;">已复制!</span>
-  </div>`;
+  html += `<div class="section-card card-freq">
+    <div class="section-title collapsible" id="freqToggle-${platform}">
+      <span class="toggle-arrow">▶</span>
+      <span class="badge">📊 频次统计（≥10次）</span>
+      <span class="section-badge">共 ${freqGte10.length} 个网站</span>
+      <button class="copy-btn" id="copyFreqBtn-${platform}" style="margin-left:auto;" onclick="event.stopPropagation()">📋 一键复制</button>
+      <span id="copyMsg-${platform}" style="font-size:11px;color:#10b981;display:none;margin-left:6px;">已复制!</span>
+    </div>
+    <div class="collapsible-body" id="freqBody-${platform}" style="display:none;">`;
 
-  html += `<div class="collapsible-body" id="freqBody-${platform}" style="display:none;">`;
   if (freqGte10.length === 0) {
     html += `<div class="no-data" style="padding:20px;">暂无 ≥10 次的网站</div>`;
   } else {
@@ -407,17 +408,18 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
     });
     html += `</tbody></table></div>`;
   }
-  html += `</div>`;
+  html += `</div></div>`;
 
   // ===== Section 2: 二测监督 =====
   if (retestAppear.length > 0) {
-    html += `<div class="section-title" style="margin-top:24px;border-bottom-color:#f59e0b;">
-      <span class="badge retest">🔍</span> 二测监督（本轮出现）
-      <span class="section-badge">共 ${retestAppear.length} 个</span>
-    </div>
-    <div class="table-wrap"><table class="data-table">
-      <thead><tr><th style="width:40px;">#</th><th>网站名称</th><th class="num" style="width:70px;">出现次数</th><th class="num" style="width:70px;">唯一URL</th><th style="width:100px;">状态</th><th style="width:110px;">操作</th></tr></thead>
-      <tbody>`;
+    html += `<div class="section-card card-retest">
+      <div class="section-title">
+        <span class="badge">🔍 二测监督（本轮出现）</span>
+        <span class="section-badge">共 ${retestAppear.length} 个</span>
+      </div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th style="width:40px;">#</th><th>网站名称</th><th class="num" style="width:70px;">出现次数</th><th class="num" style="width:70px;">唯一URL</th><th style="width:100px;">状态</th><th style="width:110px;">操作</th></tr></thead>
+        <tbody>`;
 
     retestAppear.forEach((item, i) => {
       const urlCount = Object.keys(item.urls).length;
@@ -430,7 +432,7 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
         <td>${i + 1}</td>
         <td>
           <strong>${escapeHtml(item.name)}</strong>
-          <div style="font-size:10px;color:#999;">加入第${rd.first_seen_round}轮，已历经 ${roundsInTest} 轮</div>
+          <div style="font-size:10px;color:rgba(0,0,0,0.4);">加入第${rd.first_seen_round}轮，已历经 ${roundsInTest} 轮</div>
           <div class="url-list">${renderUrlList(item.urls, 5)}</div>
         </td>
         <td class="num">${item.count}</td>
@@ -442,14 +444,15 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
         </td>
       </tr>`;
     });
-    html += `</tbody></table></div>`;
+    html += `</tbody></table></div></div>`;
   }
 
   // ===== Section 3: 新网站 =====
-  html += `<div class="section-title" style="margin-top:24px;border-bottom-color:#10b981;">
-    <span class="badge new">🆕</span> 新网站
-    <span class="section-badge">共 ${newSites.length} 个</span>
-  </div>`;
+  html += `<div class="section-card card-new">
+    <div class="section-title">
+      <span class="badge">🆕 新网站</span>
+      <span class="section-badge">共 ${newSites.length} 个</span>
+    </div>`;
 
   if (newSites.length === 0) {
     html += `<div class="no-data" style="padding:20px;">🎉 没有新网站！</div>`;
@@ -458,11 +461,11 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
       <input type="checkbox" id="selectAll-${platform}" onchange="toggleSelectAll('${platform}', this.checked)"> <label for="selectAll-${platform}" style="font-size:12px;cursor:pointer;">全选</label>
     </div>
     <div class="batch-actions" id="batchActions-${platform}">
-      <span style="font-size:12px;color:#888;">批量操作：</span>
+      <span style="font-size:12px;color:rgba(0,0,0,0.45);">批量操作：</span>
       <button class="btn btn-danger btn-sm" id="batchNoSend-${platform}">标记老网站（不可发）</button>
       <button class="btn btn-success btn-sm" id="batchOk-${platform}">标记老网站（可发布）</button>
       <button class="btn btn-warning btn-sm" id="batchRetest-${platform}">标记可二轮测试</button>
-      <span style="font-size:11px;color:#999;" id="selectedCount-${platform}">已选 0 个</span>
+      <span style="font-size:11px;color:rgba(0,0,0,0.4);" id="selectedCount-${platform}">已选 0 个</span>
     </div>
     <div class="table-wrap"><table class="data-table" id="newSitesTable-${platform}">
       <thead><tr><th style="width:30px;"><input type="checkbox" id="selectAllH-${platform}" onchange="toggleSelectAll('${platform}', this.checked)"></th><th style="width:40px;">#</th><th>网站名称</th><th class="num" style="width:70px;">次数</th><th class="num" style="width:70px;">唯一URL</th><th>网址（去重）</th></tr></thead>
@@ -485,6 +488,7 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
     });
     html += `</tbody></table></div>`;
   }
+  html += `</div>`;
 
   resultArea.innerHTML = html;
 
