@@ -9,6 +9,32 @@ const PLATFORM_LABELS = { doubao: "豆包", deepseek: "DeepSeek", baidu: "百度
 const PLATFORM_ICONS = { doubao: "🫘", deepseek: "🔍", baidu: "🌐", yuanbao: "💰", qianwen: "❓" };
 const PLATFORM_KEYS = ["豆包", "deepseek", "百度ai", "百度", "baidu", "元宝", "yuanbao", "千问", "qianwen"];
 
+// 别名映射 → 标准名称（忽略大小写）
+const SITE_ALIAS_MAP = {
+  "bbnews.cn": "蚌埠新闻网",
+  "hgdaily.com.cn": "黄冈新闻网",
+  "xnnews.com.cn": "咸宁新闻网",
+  "咸宁网": "咸宁新闻网",
+  "中国教育在线高考": "中国教育在线",
+  "中国教育在线高等教育频道": "中国教育在线",
+  "中国教育在线高考服务平台": "中国教育在线",
+  "liuxue360": "留学360",
+  "邢台日报": "邢台网",
+  "ncwb.cn": "邢台网",
+  "邢台广播电视台官方网站": "邢台网",
+  "邢台广播电视台": "邢台网",
+};
+
+/** 将网站名归一化为标准名称 */
+function normalizeName(raw) {
+  const trimmed = raw.trim();
+  // 精确匹配（忽略大小写）
+  const lower = trimmed.toLowerCase();
+  if (SITE_ALIAS_MAP[lower] !== undefined) return SITE_ALIAS_MAP[lower];
+  if (SITE_ALIAS_MAP[trimmed] !== undefined) return SITE_ALIAS_MAP[trimmed];
+  return trimmed;
+}
+
 // ==================== Supabase 客户端 ====================
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -177,7 +203,7 @@ function handleUpload(file, platform) {
       const urlMap = {}; // { siteName: { url: count } }
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const sName = row[eIdx] ? String(row[eIdx]).trim() : "";
+        const sName = row[eIdx] ? normalizeName(String(row[eIdx])) : "";
         const sUrl = row[cIdx] ? String(row[cIdx]).trim() : "";
         if (!sName) continue;
         eCol.push(sName);
