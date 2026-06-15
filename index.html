@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 表格分析工具</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333;min-height:100vh}
+    .app-container{max-width:1500px;margin:0 auto;padding:24px}
+    .app-header{text-align:center;margin-bottom:24px}
+    .app-header h1{font-size:24px;font-weight:700;color:#1a1a2e}
+    .app-header p{font-size:13px;color:#888;margin-top:4px}
+
+    /* Tabs */
+    .tabs-nav{display:flex;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);overflow:hidden;margin-bottom:16px}
+    .tab-btn{flex:1;padding:13px 10px;border:none;background:#fff;font-size:13px;font-weight:500;color:#666;cursor:pointer;transition:all 0.2s;white-space:nowrap;position:relative}
+    .tab-btn:hover{color:#4f6ef7;background:#f8f9ff}
+    .tab-btn.active{color:#4f6ef7;font-weight:600;background:#f0f3ff}
+    .tab-btn.active::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:36%;height:3px;background:#4f6ef7;border-radius:3px 3px 0 0}
+    .tab-btn.tab-summary,.tab-btn.tab-retest{color:#e8890c}
+    .tab-btn.tab-summary:hover,.tab-btn.tab-retest:hover{color:#e8890c;background:#fffaf0}
+    .tab-btn.tab-summary.active,.tab-btn.tab-retest.active{color:#e8890c;background:#fff7e6}
+    .tab-btn.tab-summary.active::after,.tab-btn.tab-retest.active::after{background:#e8890c}
+
+    /* Tab Content */
+    .tabs-content{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);min-height:500px;overflow:hidden}
+    .tab-panel{display:none;padding:28px;animation:fadeIn .25s ease}
+    .tab-panel.active{display:block}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+    /* Drop Zone */
+    .drop-zone{border:2px dashed #d0d5e0;border-radius:14px;padding:55px 40px;text-align:center;transition:all 0.3s;cursor:pointer;background:#fafbfc}
+    .drop-zone:hover,.drop-zone.drag-over{border-color:#4f6ef7;background:#f0f3ff}
+    .drop-zone-icon{font-size:42px;margin-bottom:12px;opacity:0.6}
+    .drop-zone-title{font-size:15px;font-weight:600;color:#444;margin-bottom:6px}
+    .drop-zone-hint{font-size:12px;color:#999}
+    .drop-zone-hint span{color:#4f6ef7;font-weight:500}
+    .drop-zone input[type="file"]{display:none}
+
+    /* File Info */
+    .file-info-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f0f3ff;border-radius:10px;margin-bottom:16px}
+    .file-info-name{font-size:13px;font-weight:500;color:#4f6ef7;display:flex;align-items:center;gap:8px}
+    .file-info-actions{display:flex;gap:8px}
+
+    /* Buttons */
+    .btn{padding:7px 16px;border:none;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+    .btn-outline{background:#fff;color:#4f6ef7;border:1px solid #4f6ef7}
+    .btn-outline:hover{background:#4f6ef7;color:#fff}
+    .btn-primary{background:#4f6ef7;color:#fff}
+    .btn-primary:hover{background:#3d5bd9}
+    .btn-danger{background:#fff;color:#e74c3c;border:1px solid #e74c3c}
+    .btn-danger:hover{background:#e74c3c;color:#fff}
+    .btn-success{background:#10b981;color:#fff}
+    .btn-success:hover{background:#059669}
+    .btn-warning{background:#f59e0b;color:#fff}
+    .btn-warning:hover{background:#d97706}
+    .btn-sm{padding:4px 10px;font-size:11px}
+    .btn-xs{padding:2px 7px;font-size:10px;border-radius:4px}
+
+    /* Result Area */
+    .result-area{border:1px solid #e8ebf0;border-radius:10px;min-height:200px;background:#fafbfc;overflow:hidden}
+
+    /* Section */
+    .section-title{font-size:14px;font-weight:600;color:#333;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #4f6ef7;display:flex;align-items:center;gap:8px}
+    .section-title .badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500;color:#fff}
+    .section-title .badge.freq{background:#4f6ef7}
+    .section-title .badge.retest{background:#f59e0b}
+    .section-title .badge.new{background:#10b981}
+    .section-badge{font-size:11px;color:#888;font-weight:400}
+
+    /* Stats Bar */
+    .stats-bar{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+    .stat-card{flex:1;min-width:120px;padding:12px 16px;border-radius:8px;text-align:center}
+    .stat-card .num{font-size:22px;font-weight:700}
+    .stat-card .lbl{font-size:11px;color:#888;margin-top:2px}
+    .stat-blue{background:#eef2ff}.stat-blue .num{color:#4f6ef7}
+    .stat-green{background:#ecfdf5}.stat-green .num{color:#10b981}
+    .stat-orange{background:#fff7ed}.stat-orange .num{color:#f59e0b}
+    .stat-purple{background:#f5f3ff}.stat-purple .num{color:#8b5cf6}
+
+    /* Tables */
+    .table-wrap{border-radius:8px;border:1px solid #e8ebf0;overflow-x:auto;margin-bottom:12px}
+    .data-table{width:100%;border-collapse:collapse;font-size:12px}
+    .data-table thead th{background:#f8f9fb;padding:10px 12px;text-align:left;font-weight:600;color:#555;border-bottom:2px solid #e8ebf0;white-space:nowrap}
+    .data-table tbody td{padding:8px 12px;border-bottom:1px solid #f0f1f3;vertical-align:middle}
+    .data-table tbody tr:hover{background:#fafbfd}
+    .data-table tbody tr:last-child td{border-bottom:none}
+    .data-table .num{text-align:center;font-weight:600}
+    .data-table .url-cell{max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .data-table .url-cell a{color:#4f6ef7;text-decoration:none}
+    .data-table .url-cell a:hover{text-decoration:underline}
+
+    /* Tags / Badges */
+    .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;margin:1px 2px}
+    .tag-doubao{background:#eef2ff;color:#4f6ef7}
+    .tag-deepseek{background:#ecfdf5;color:#10b981}
+    .tag-baidu{background:#e8f4fd;color:#3b82f6}
+    .tag-yuanbao{background:#fff7ed;color:#f59e0b}
+    .tag-qianwen{background:#f5f3ff;color:#8b5cf6}
+    .tag-status{font-size:11px;padding:2px 8px;border-radius:4px}
+    .tag-nosend{background:#fee2e2;color:#dc2626}
+    .tag-ok{background:#d1fae5;color:#059669}
+    .tag-retesting{background:#fef3c7;color:#d97706}
+    .tag-failed{background:#fce7f3;color:#db2777}
+
+    /* Copy Button */
+    .copy-btn{font-size:11px;background:#f0f3ff;color:#4f6ef7;border:1px solid #d0d8f7;padding:4px 10px;border-radius:5px;cursor:pointer}
+    .copy-btn:hover{background:#4f6ef7;color:#fff}
+    .copied{background:#d1fae5!important;color:#059669!important;border-color:#6ee7b7!important}
+
+    /* URL list */
+    .url-list{font-size:11px;color:#666;max-height:120px;overflow-y:auto;margin-top:4px}
+    .url-list .url-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px dotted #eee}
+    .url-list .url-row .cnt{color:#999;font-size:10px;white-space:nowrap;margin-left:8px}
+
+    /* Checkbox */
+    .checkbox-wrap{display:flex;align-items:center;gap:6px;margin:8px 0}
+    .checkbox-wrap input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
+    .batch-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid #eee;margin-top:8px}
+
+    /* Modal */
+    .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:1000;justify-content:center;align-items:center}
+    .modal-overlay.show{display:flex}
+    .modal{background:#fff;border-radius:14px;width:90%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:modalIn .25s ease}
+    @keyframes modalIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+    .modal-header{padding:20px 24px 0;font-size:17px;font-weight:700}
+    .modal-body{padding:16px 24px}
+    .modal-body .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+    .modal-body .info-row .lbl{color:#888}
+    .modal-body .info-row .val{font-weight:500}
+    .modal-body .info-row .val.warn{color:#e8890c}
+    .modal-body select{width:100%;padding:8px 12px;border:1px solid #d0d5e0;border-radius:8px;font-size:13px;margin-top:12px}
+    .modal-footer{padding:0 24px 20px;display:flex;gap:10px;justify-content:flex-end}
+    .modal-footer .btn{padding:9px 22px;font-size:13px}
+
+    /* Monitor Section */
+    .monitor-input-row{display:flex;gap:8px;margin-bottom:12px}
+    .monitor-input-row input{flex:1;padding:8px 12px;border:1px solid #d0d5e0;border-radius:8px;font-size:13px}
+    .no-data{text-align:center;color:#bbb;font-size:13px;padding:40px 0}
+
+    /* Top Bar Actions */
+    .top-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .round-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;background:#f0f3ff;border-radius:14px;font-size:12px;font-weight:500;color:#4f6ef7}
+
+    /* Responsive */
+    @media(max-width:768px){
+      .tabs-nav{flex-wrap:wrap}.tab-btn{flex:1 0 16.66%;font-size:11px;padding:10px 4px}
+      .tab-panel{padding:16px}.drop-zone{padding:30px 16px}
+      .batch-actions{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- Header -->
+    <div class="app-header">
+      <h1>📊 AI 表格分析工具</h1>
+      <p>上传各平台采集表格 · 自动识别新网站 · 二测监督 · 跨平台共同网站分析</p>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs-nav" id="tabsNav">
+      <button class="tab-btn active" data-tab="tab-doubao">🫘 豆包</button>
+      <button class="tab-btn" data-tab="tab-deepseek">🔍 DeepSeek</button>
+      <button class="tab-btn" data-tab="tab-baidu">🌐 百度AI</button>
+      <button class="tab-btn" data-tab="tab-yuanbao">💰 元宝</button>
+      <button class="tab-btn" data-tab="tab-qianwen">❓ 千问</button>
+      <button class="tab-btn tab-summary" data-tab="tab-summary">📋 共同网站</button>
+      <button class="tab-btn tab-retest" data-tab="tab-retest">📊 二测统计</button>
+    </div>
+
+    <!-- Tabs Content -->
+    <div class="tabs-content" id="tabsContent">
+      <!-- Tab 1-5 generated by JS -->
+    </div>
+  </div>
+
+  <!-- Upload Confirm Modal -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+      <div class="modal-header">📤 上传确认</div>
+      <div class="modal-body" id="confirmModalBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeConfirmModal()">取消</button>
+        <button class="btn btn-primary" id="confirmUploadBtn">确认上传</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Detail Modal (URL list) -->
+  <div class="modal-overlay" id="siteDetailModal">
+    <div class="modal" style="max-width:700px">
+      <div class="modal-header" id="siteDetailTitle"></div>
+      <div class="modal-body" id="siteDetailBody" style="max-height:50vh;overflow-y:auto"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeSiteDetailModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
