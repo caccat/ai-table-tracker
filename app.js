@@ -808,12 +808,35 @@ function getCrossPlatformUrlData(siteName) {
   return urlData;
 }
 
-/** 渲染共同网站弹窗表格（支持筛选） */
-function renderCommonSiteTable(allData, filterDates) {
-  const entries = Object.entries(allData)
-    .sort((a, b) => b[1].totalCount - a[1].totalCount);
+/** 渲染共同网站弹窗表格（支持筛选 + 排序）
+ * sortOrder: 0=按重复次数降序(默认) 1=发布时间降序(新→旧) 2=发布时间升序(旧→新)
+ */
+function renderCommonSiteTable(allData, filterDates, sortOrder) {
+  let entries = Object.entries(allData);
 
-  // 收集所有唯一日期（用于构建筛选面板）
+  // 排序
+  if (sortOrder === 1) {
+    // 发布时间降序（新的在前，空白排最后）
+    entries.sort((a, b) => {
+      const da = a[1].publishTime || "", db = b[1].publishTime || "";
+      if (!da && !db) return 0;
+      if (!da) return 1; if (!db) return -1;
+      return db.localeCompare(da);
+    });
+  } else if (sortOrder === 2) {
+    // 发布时间升序（旧的在前，空白排最后）
+    entries.sort((a, b) => {
+      const da = a[1].publishTime || "", db = b[1].publishTime || "";
+      if (!da && !db) return 0;
+      if (!da) return 1; if (!db) return -1;
+      return da.localeCompare(db);
+    });
+  } else {
+    // 默认：按重复次数降序
+    entries.sort((a, b) => b[1].totalCount - a[1].totalCount);
+  }
+
+  // 收集所有唯一日期（用于构建筛选面板）——始终从全量数据统计
   const dateSet = {};
   entries.forEach(([_, d]) => {
     const dt = d.publishTime || "(空白)";
@@ -821,7 +844,6 @@ function renderCommonSiteTable(allData, filterDates) {
   });
 
   if (!filterDates) {
-    // 默认不过滤
     filterDates = new Set(Object.keys(dateSet));
   }
 
@@ -830,13 +852,20 @@ function renderCommonSiteTable(allData, filterDates) {
     return filterDates.has(dt);
   });
 
+  // 排序箭头显示
+  const sortArrowMap = { 0: "", 1: "↓", 2: "↑" };
+  const sortArrow = sortArrowMap[sortOrder] || "";
+
   let tableHtml = `<table class="data-table" id="commonSiteTable">
     <thead><tr>
       <th style="width:35px;">#</th>
       <th style="width:auto;">标题</th>
       <th style="width:45%;">去重网址</th>
       <th class="num" style="width:70px;">重复次数</th>
-      <th class="num sortable-th" id="dateFilterTh" style="width:95px;">发布时间 <span class="sort-arrow">▼</span></th>
+      <th class="num" style="width:95px;">
+        <span class="sortable-th" id="dateSortTh" style="cursor:pointer;display:inline-block;padding:4px 0;">发布时间${sortArrow ? `<span style="color:#4f6ef7;font-weight:700;margin-left:2px;">${sortArrow}</span>` : ""}</span>
+        <span class="sortable-th" id="dateFilterTh" style="cursor:pointer;color:#aaa;margin-left:3px;font-size:10px;">▼</span>
+      </th>
     </tr></thead>
     <tbody>`;
 
@@ -880,19 +909,43 @@ function showCommonSiteDetail(siteName) {
   document.getElementById("commonSiteTitle").innerHTML = `🔗 ${escapeHtml(siteName)} <span style="font-weight:400;color:#888;font-size:13px;">— 跨平台网址详情（${entries.length} 个唯一URL）</span>
     <div style="font-weight:400;font-size:12px;color:#888;margin-top:4px;">覆盖：${coveredPlats.join(" · ")}</div>`;
 
-  // 首次渲染：全选所有日期
-  const { html, dateSet } = renderCommonSiteTable(allData, null);
-  document.getElementById("commonSiteBody").innerHTML = html;
-  document.getElementById("commonSiteModal").classList.add("show");
+  // 排序状态（模块级，0=默认 1=日期降 2=日期升）
+  let _sortOrder = 0;
 
-  // 绑定筛选按钮事件
-  const dateTh = document.getElementById("dateFilterTh");
-  if (dateTh) {
-    dateTh.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openDateFilter(e, allData, dateSet);
-    });
+  // 渲染函数
+  function render(filterDates) {
+    const { html, dateSet } = renderCommonSiteTable(allData, filterDates || null, _sortOrder);
+    document.getElementById("commonSiteBody").innerHTML = html;
+    bindEvents(dateSet);
   }
+
+  // 绑定事件
+  function bindEvents(dateSet) {
+    // 排序：点击"发布时间"
+    const sortTh = document.getElementById("dateSortTh");
+    if (sortTh) {
+      sortTh.addEventListener("click", () => {
+        _sortOrder = (_sortOrder + 1) % 3;
+        // 从当前筛选状态获取已勾选的日期
+        const checked = new Set();
+        const rows = document.querySelectorAll("#commonSiteTable tbody tr");
+        rows.forEach((row) => { checked.add(row.cells[4].textContent.trim()); });
+        render(checked);
+      });
+    }
+
+    // 筛选：点击▼
+    const filterTh = document.getElementById("dateFilterTh");
+    if (filterTh) {
+      filterTh.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openDateFilter(e, allData, dateSet, _sortOrder);
+      });
+    }
+  }
+
+  render(null); // 首次渲染（全选、默认排序）
+  document.getElementById("commonSiteModal").classList.add("show");
 }
 
 function closeCommonSiteModal() {
@@ -902,7 +955,7 @@ function closeCommonSiteModal() {
 
 // ==================== 发布时间筛选面板 ====================
 
-function openDateFilter(event, allData, dateSet) {
+function openDateFilter(event, allData, dateSet, sortOrder) {
   const dropdown = document.getElementById("filterDropdown");
   const list = document.getElementById("filterList");
 
@@ -940,12 +993,12 @@ function openDateFilter(event, allData, dateSet) {
   list.querySelector("#fi_all").addEventListener("change", function () {
     const checked = this.checked;
     list.querySelectorAll(".fi-date").forEach((cb) => { cb.checked = checked; });
-    applyDateFilter(allData);
+    applyDateFilter(allData, sortOrder);
   });
 
   // 单项逻辑
   list.querySelectorAll(".fi-date").forEach((cb) => {
-    cb.addEventListener("change", () => applyDateFilter(allData));
+    cb.addEventListener("change", () => applyDateFilter(allData, sortOrder));
   });
 
   // 定位
@@ -960,7 +1013,7 @@ function openDateFilter(event, allData, dateSet) {
   }, 0);
 }
 
-function applyDateFilter(allData) {
+function applyDateFilter(allData, sortOrder) {
   const checked = document.querySelectorAll(".fi-date:checked");
   const filterDates = new Set();
   checked.forEach((cb) => {
@@ -968,10 +1021,22 @@ function applyDateFilter(allData) {
     if (parent) filterDates.add(parent.dataset.date);
   });
 
-  const { html } = renderCommonSiteTable(allData, filterDates);
+  const { html } = renderCommonSiteTable(allData, filterDates, sortOrder || 0);
   document.getElementById("commonSiteBody").innerHTML = html;
 
-  // 重新绑定筛选按钮（dateSet 始终从全量数据计算，保证计数准确）
+  // 重新绑定排序和筛选按钮
+  const sortTh = document.getElementById("dateSortTh");
+  if (sortTh) {
+    sortTh.addEventListener("click", () => {
+      const nextOrder = ((sortOrder || 0) + 1) % 3;
+      const checked = new Set();
+      document.querySelectorAll("#commonSiteTable tbody tr").forEach((row) => {
+        checked.add(row.cells[4].textContent.trim());
+      });
+      applyDateFilter(allData, nextOrder);
+    });
+  }
+
   const dateTh = document.getElementById("dateFilterTh");
   if (dateTh) {
     dateTh.addEventListener("click", (e) => {
@@ -981,7 +1046,7 @@ function applyDateFilter(allData) {
         const dt = d.publishTime || "(空白)";
         fullDateSet[dt] = (fullDateSet[dt] || 0) + 1;
       }
-      openDateFilter(e, allData, fullDateSet);
+      openDateFilter(e, allData, fullDateSet, sortOrder);
     });
   }
 
