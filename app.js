@@ -296,8 +296,8 @@ function showConfirmModal(platform, file, fileDate, detectedPlat, platLabel, det
   // 查询该文件是否已上传过 & 轮次
   (async () => {
     const targetPlat = platform;
-    const { data: existing } = await sb.from("platform_uploads").select("*").eq("platform", targetPlat).eq("file_name", file.name);
-    const { data: allUploads } = await sb.from("platform_uploads").select("*").eq("platform", targetPlat).order("file_date", { ascending: true });
+    const { data: existing } = await sb.from("platform_uploads" + TABLE_SUFFIX).select("*").eq("platform", targetPlat).eq("file_name", file.name);
+    const { data: allUploads } = await sb.from("platform_uploads" + TABLE_SUFFIX).select("*").eq("platform", targetPlat).order("file_date", { ascending: true });
     const allFiles = allUploads || [];
     const existingFile = existing && existing.length > 0 ? existing[0] : null;
 
@@ -351,14 +351,14 @@ async function processUpload(platform, file, fileDate, round) {
   resultArea.innerHTML = `<div class="no-data">⏳ 正在分析...</div>`;
 
   // 写入上传记录
-  await sb.from("platform_uploads").upsert({
+  await sb.from("platform_uploads" + TABLE_SUFFIX).upsert({
     platform, file_name: file.name, file_date: fileDate, round,
   }, { onConflict: "platform,file_name" });
 
   // 查询老网站库 & 二测列表
   const [{ data: oldSites }, { data: retestSites }] = await Promise.all([
-    sb.from("old_sites").select("*").eq("platform", platform),
-    sb.from("retest_sites").select("*").eq("platform", platform),
+    sb.from("old_sites" + TABLE_SUFFIX).select("*").eq("platform", platform),
+    sb.from("retest_sites" + TABLE_SUFFIX).select("*").eq("platform", platform),
   ]);
 
   const oldSet = new Set((oldSites || []).map((s) => s.site_name));
@@ -608,14 +608,14 @@ async function batchMark(platform, status) {
     const rows = sites.map((name) => ({
       platform, site_name: name, status: "可二轮测试", first_seen_round: round,
     }));
-    const { error } = await sb.from("retest_sites").upsert(rows, { onConflict: "platform,site_name" });
+    const { error } = await sb.from("retest_sites" + TABLE_SUFFIX).upsert(rows, { onConflict: "platform,site_name" });
     if (error) { alert("操作失败：" + error.message); return; }
   } else {
     const source = "direct";
     const rows = sites.map((name) => ({
       platform, site_name: name, status, source,
     }));
-    const { error } = await sb.from("old_sites").upsert(rows, { onConflict: "platform,site_name" });
+    const { error } = await sb.from("old_sites" + TABLE_SUFFIX).upsert(rows, { onConflict: "platform,site_name" });
     if (error) { alert("操作失败：" + error.message); return; }
   }
 
@@ -626,11 +626,11 @@ async function batchMark(platform, status) {
 async function retestAction(platform, siteName, action, round) {
   if (action === "pass") {
     await Promise.all([
-      sb.from("old_sites").upsert({ platform, site_name: siteName, status: "可发布", source: "retest" }, { onConflict: "platform,site_name" }),
-      sb.from("retest_sites").delete().eq("platform", platform).eq("site_name", siteName),
+      sb.from("old_sites" + TABLE_SUFFIX).upsert({ platform, site_name: siteName, status: "可发布", source: "retest" }, { onConflict: "platform,site_name" }),
+      sb.from("retest_sites" + TABLE_SUFFIX).delete().eq("platform", platform).eq("site_name", siteName),
     ]);
   } else {
-    await sb.from("retest_sites").update({ status: "二测未通过" }).eq("platform", platform).eq("site_name", siteName);
+    await sb.from("retest_sites" + TABLE_SUFFIX).update({ status: "二测未通过" }).eq("platform", platform).eq("site_name", siteName);
   }
   await reloadPlatformView(platform, round);
 }
@@ -639,8 +639,8 @@ async function reloadPlatformView(platform, round) {
   const { eCol, cCol, freq, urlMap } = ps[platform];
   if (!freq) return;
   const [{ data: oldSites }, { data: retestSites }] = await Promise.all([
-    sb.from("old_sites").select("*").eq("platform", platform),
-    sb.from("retest_sites").select("*").eq("platform", platform),
+    sb.from("old_sites" + TABLE_SUFFIX).select("*").eq("platform", platform),
+    sb.from("retest_sites" + TABLE_SUFFIX).select("*").eq("platform", platform),
   ]);
   const oldSet = new Set((oldSites || []).map((s) => s.site_name));
   const retestMap = {};
@@ -1008,8 +1008,8 @@ async function refreshRetestStats() {
   const statusEl = document.getElementById("retestStatus");
 
   const [{ data: retestAll }, { data: oldPassed }] = await Promise.all([
-    sb.from("retest_sites").select("*"),
-    sb.from("old_sites").select("*").eq("source", "retest"),
+    sb.from("retest_sites" + TABLE_SUFFIX).select("*"),
+    sb.from("old_sites" + TABLE_SUFFIX).select("*").eq("source", "retest"),
   ]);
 
   const retestByPlat = {};
@@ -1062,7 +1062,7 @@ document.getElementById("refreshRetestBtn").addEventListener("click", refreshRet
 
 // ==================== 手动监测列表 ====================
 async function loadMonitorList() {
-  const { data } = await sb.from("monitor_list").select("*").order("created_at");
+  const { data } = await sb.from("monitor_list" + TABLE_SUFFIX).select("*").order("created_at");
   renderMonitorList(data || []);
 }
 
@@ -1084,21 +1084,20 @@ async function addMonitor() {
   const input = document.getElementById("monitorInput");
   const name = input.value.trim();
   if (!name) return;
-  const { error } = await sb.from("monitor_list").upsert({ site_name: name }, { onConflict: "site_name" });
+  const { error } = await sb.from("monitor_list" + TABLE_SUFFIX).upsert({ site_name: name }, { onConflict: "site_name" });
   if (error) { alert("添加失败：" + error.message); return; }
   input.value = "";
   await loadMonitorList();
 }
 
 async function removeMonitor(name) {
-  await sb.from("monitor_list").delete().eq("site_name", name);
+  await sb.from("monitor_list" + TABLE_SUFFIX).delete().eq("site_name", name);
   await loadMonitorList();
 }
 
 async function checkMonitor() {
-  const { data } = await sb.from("monitor_list").select("*");
+  const { data } = await sb.from("monitor_list" + TABLE_SUFFIX).select("*");
   if (!data || data.length === 0) { alert("监测列表为空"); return; }
-
   const result = document.getElementById("monitorResult");
   let html = `<div style="font-weight:600;margin-bottom:8px;">🔍 检测结果：</div><div class="table-wrap"><table class="data-table">
     <thead><tr><th>网站名</th>${PLATFORMS.map((p) => `<th class="num">${PLATFORM_LABELS[p]}</th>`).join("")}</tr></thead><tbody>`;

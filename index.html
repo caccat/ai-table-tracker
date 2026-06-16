@@ -171,6 +171,9 @@
     .sortable-th:hover{background:rgba(0,0,0,0.03)}
     .sort-arrow{font-size:10px;margin-left:2px;color:#aaa}
 
+    /* Test badge */
+    .test-badge{font-size:11px;padding:3px 10px;border-radius:12px;background:#fff3cd;color:#856404;border:1px solid #ffc107;margin-left:6px;vertical-align:middle;font-weight:600;letter-spacing:0.5px}
+
     /* Monitor Section */
     .monitor-input-row{display:flex;gap:8px;margin-bottom:12px}
     .monitor-input-row input{flex:1;padding:8px 12px;border:1px solid #d0d5e0;border-radius:8px;font-size:13px}
@@ -193,7 +196,7 @@
 
     <!-- Header -->
     <div class="app-header">
-      <h1>📊 AI 表格分析工具</h1>
+      <h1>📊 AI 表格分析工具 <span class="test-badge" style="display:none;">🧪 测试环境</span></h1>
       <p>上传各平台采集表格 · 自动识别新网站 · 二测监督 · 跨平台共同网站分析</p>
       <p class="file-hint">⚠️ 注意！！！表格文件名需包含正确的日期（如 2026-06-15_采集结果豆包.xlsx），系统将按日期自动排列轮次找出新网站</p>
     </div>
@@ -257,6 +260,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
+  <script>
+    // 测试环境标识
+    if (typeof TABLE_SUFFIX === 'string' && TABLE_SUFFIX) {
+      document.querySelector('.test-badge').style.display = 'inline';
+    }
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
