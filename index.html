@@ -154,6 +154,23 @@
     .modal-footer{padding:0 24px 20px;display:flex;gap:10px;justify-content:flex-end}
     .modal-footer .btn{padding:9px 22px;font-size:13px}
 
+    /* Filter Dropdown */
+    .filter-dropdown{position:fixed;z-index:1100;background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.15);border:1px solid #e8ebf0;min-width:200px;max-height:300px;overflow-y:auto}
+    .filter-list{padding:4px 0}
+    .filter-item{display:flex;align-items:center;gap:8px;padding:6px 14px;font-size:12px;cursor:pointer;transition:background .1s}
+    .filter-item:hover{background:#f6f7fa}
+    .filter-item input[type=checkbox]{width:14px;height:14px;accent-color:#4f6ef7}
+    .filter-item .fi-count{color:#999;font-size:11px;margin-left:auto}
+
+    /* Common site link */
+    .common-site-link{cursor:pointer;color:#4f6ef7;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+    .common-site-link:hover{color:#3b5de7}
+
+    /* Sortable th */
+    .sortable-th{cursor:pointer;user-select:none;position:relative}
+    .sortable-th:hover{background:rgba(0,0,0,0.03)}
+    .sort-arrow{font-size:10px;margin-left:2px;color:#aaa}
+
     /* Monitor Section */
     .monitor-input-row{display:flex;gap:8px;margin-bottom:12px}
     .monitor-input-row input{flex:1;padding:8px 12px;border:1px solid #d0d5e0;border-radius:8px;font-size:13px}
@@ -219,6 +236,22 @@
         <button class="btn btn-outline" onclick="closeSiteDetailModal()">关闭</button>
       </div>
     </div>
+  </div>
+
+  <!-- Common Site Cross-platform URL Modal -->
+  <div class="modal-overlay" id="commonSiteModal">
+    <div class="modal" style="max-width:900px">
+      <div class="modal-header" id="commonSiteTitle"></div>
+      <div class="modal-body" id="commonSiteBody" style="max-height:65vh;overflow-y:auto"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeCommonSiteModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Dropdown (portal) -->
+  <div class="filter-dropdown" id="filterDropdown" style="display:none;">
+    <div class="filter-list" id="filterList"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

@@ -38,6 +38,16 @@ function normalizeName(raw) {
   return trimmed;
 }
 
+/** 日期标准化：2026年06月12日 → 2026-06-12，已是标准格式不变 */
+function normalizeDate(raw) {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  return s;
+}
+
 // ==================== Supabase 客户端 ====================
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -192,29 +202,38 @@ function handleUpload(file, platform) {
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
       if (rows.length < 2) { alert("表格为空"); return; }
 
-      // 查找列索引
+      // 查找列索引（C=网址 D=标题 E=网站名称 F=发布时间）
       const header = rows[0].map((h) => (h ? String(h).trim() : ""));
-      let eIdx = 4, cIdx = 2;
+      let eIdx = 4, cIdx = 2, dIdx = 3, fIdx = 5;
       header.forEach((h, i) => {
         if (h === "网站名称") eIdx = i;
         if (h === "网址") cIdx = i;
+        if (h === "标题") dIdx = i;
+        if (h === "发布时间" || h === "时间") fIdx = i;
       });
 
-      // 提取 E 列（网站名称）和 C 列（网址）
+      // 提取列数据
       const eCol = [], cCol = [];
       const freq = {};
-      const urlMap = {}; // { siteName: { url: count } }
+      const urlMap = {}; // { siteName: { url: { count, title, publishTime } } }
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         const sName = row[eIdx] ? normalizeName(String(row[eIdx])) : "";
         const sUrl = row[cIdx] ? String(row[cIdx]).trim() : "";
         if (!sName) continue;
+        const sTitle = row[dIdx] ? String(row[dIdx]).trim() : "";
+        const sPublishTime = row[fIdx] ? normalizeDate(String(row[fIdx])) : "";
         eCol.push(sName);
         cCol.push(sUrl);
         freq[sName] = (freq[sName] || 0) + 1;
         if (sUrl) {
           if (!urlMap[sName]) urlMap[sName] = {};
-          urlMap[sName][sUrl] = (urlMap[sName][sUrl] || 0) + 1;
+          if (!urlMap[sName][sUrl]) {
+            urlMap[sName][sUrl] = { count: 0, title: sTitle, publishTime: sPublishTime };
+          }
+          urlMap[sName][sUrl].count += 1;
+          if (!urlMap[sName][sUrl].title && sTitle) urlMap[sName][sUrl].title = sTitle;
+          if (!urlMap[sName][sUrl].publishTime && sPublishTime) urlMap[sName][sUrl].publishTime = sPublishTime;
         }
       }
 
@@ -496,11 +515,13 @@ function renderPlatformResult(platform, round, freqGte10, retestAppear, newSites
   bindPlatformEvents(platform);
 }
 
+function getUrlCount(val) { return typeof val === "object" ? val.count : val; }
+
 function renderUrlList(urlMap, limit) {
-  const entries = Object.entries(urlMap).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(urlMap).sort((a, b) => getUrlCount(b[1]) - getUrlCount(a[1]));
   const show = entries.slice(0, limit);
-  return show.map(([url, cnt]) =>
-    `<div class="url-row"><a href="${escapeHtml(url)}" target="_blank" style="color:#4f6ef7;font-size:11px;">${escapeHtml(truncateUrl(url, 50))}</a><span class="cnt">${cnt}次</span></div>`
+  return show.map(([url, val]) =>
+    `<div class="url-row"><a href="${escapeHtml(url)}" target="_blank" style="color:#4f6ef7;font-size:11px;">${escapeHtml(truncateUrl(url, 50))}</a><span class="cnt">${getUrlCount(val)}次</span></div>`
   ).join("");
 }
 
@@ -664,13 +685,13 @@ function clearPlatform(platform) {
 // ==================== 网址详情弹窗 ====================
 function showUrlDetail(platform, siteName) {
   const urls = ps[platform].urlMap[siteName] || {};
-  const entries = Object.entries(urls).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(urls).sort((a, b) => getUrlCount(b[1]) - getUrlCount(a[1]));
   document.getElementById("siteDetailTitle").textContent = `🔗 ${siteName} - 全部网址（${entries.length} 个唯一URL）`;
   document.getElementById("siteDetailBody").innerHTML = `
     <table class="data-table">
       <thead><tr><th style="width:40px;">#</th><th>网址</th><th class="num" style="width:60px;">次数</th></tr></thead>
       <tbody>
-        ${entries.map(([url, cnt], i) => `<tr><td>${i + 1}</td><td><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(url)}</a></td><td class="num">${cnt}</td></tr>`).join("")}
+        ${entries.map(([url, val], i) => `<tr><td>${i + 1}</td><td><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(url)}</a></td><td class="num">${getUrlCount(val)}</td></tr>`).join("")}
       </tbody>
     </table>`;
   document.getElementById("siteDetailModal").classList.add("show");
@@ -752,14 +773,234 @@ async function refreshSummary() {
       const d = site.details.find((x) => x.platform === p);
       return d ? `<td class="num"><span class="tag tag-${p}">${d.count}</span></td>` : `<td class="num" style="color:#ccc;">-</td>`;
     }).join("");
-    tableHtml += `<tr><td>${i + 1}</td><td><strong>${escapeHtml(site.name)}</strong><div style="margin-top:3px;">${platformTags}</div></td><td class="num" style="font-size:14px;font-weight:700;color:#4f6ef7;">${site.platformCount}</td>${cells}<td class="num" style="font-weight:700;">${total}</td></tr>`;
+    tableHtml += `<tr><td>${i + 1}</td><td><span class="common-site-link" data-sitename="${escapeHtml(site.name)}">${escapeHtml(site.name)}</span><div style="margin-top:3px;">${platformTags}</div></td><td class="num" style="font-size:14px;font-weight:700;color:#4f6ef7;">${site.platformCount}</td>${cells}<td class="num" style="font-weight:700;">${total}</td></tr>`;
   });
 
   tableHtml += `</tbody></table></div>`;
   content.innerHTML = tableHtml;
+
+  // 事件委托：点击共同网站名 → 弹出跨平台网址详情
+  content.querySelectorAll(".common-site-link").forEach((el) => {
+    el.addEventListener("click", () => showCommonSiteDetail(el.dataset.sitename));
+  });
 }
 
 document.getElementById("refreshSummaryBtn").addEventListener("click", refreshSummary);
+
+// ==================== 共同网站跨平台网址弹窗 ====================
+
+/** 聚合某个网站在所有平台的 URL 数据 */
+function getCrossPlatformUrlData(siteName) {
+  const urlData = {}; // { url: { totalCount, title, publishTime } }
+  for (const p of PLATFORMS) {
+    const um = ps[p].urlMap || {};
+    const siteUrls = um[siteName] || {};
+    for (const [url, val] of Object.entries(siteUrls)) {
+      const cnt = getUrlCount(val);
+      if (!urlData[url]) urlData[url] = { totalCount: 0, title: "", publishTime: "" };
+      urlData[url].totalCount += cnt;
+      if (typeof val === "object") {
+        if (!urlData[url].title && val.title) urlData[url].title = val.title;
+        if (!urlData[url].publishTime && val.publishTime) urlData[url].publishTime = val.publishTime;
+      }
+    }
+  }
+  return urlData;
+}
+
+/** 渲染共同网站弹窗表格（支持筛选） */
+function renderCommonSiteTable(allData, filterDates) {
+  const entries = Object.entries(allData)
+    .sort((a, b) => b[1].totalCount - a[1].totalCount);
+
+  // 收集所有唯一日期（用于构建筛选面板）
+  const dateSet = {};
+  entries.forEach(([_, d]) => {
+    const dt = d.publishTime || "(空白)";
+    dateSet[dt] = (dateSet[dt] || 0) + 1;
+  });
+
+  if (!filterDates) {
+    // 默认不过滤
+    filterDates = new Set(Object.keys(dateSet));
+  }
+
+  const filtered = entries.filter(([_, d]) => {
+    const dt = d.publishTime || "(空白)";
+    return filterDates.has(dt);
+  });
+
+  let tableHtml = `<table class="data-table" id="commonSiteTable">
+    <thead><tr>
+      <th style="width:35px;">#</th>
+      <th style="width:auto;">标题</th>
+      <th style="width:45%;">去重网址</th>
+      <th class="num" style="width:70px;">重复次数</th>
+      <th class="num sortable-th" id="dateFilterTh" style="width:95px;">发布时间 <span class="sort-arrow">▼</span></th>
+    </tr></thead>
+    <tbody>`;
+
+  filtered.forEach(([url, d], i) => {
+    const dt = d.publishTime || "(空白)";
+    tableHtml += `<tr>
+      <td>${i + 1}</td>
+      <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.title)}">${escapeHtml(d.title) || "-"}</td>
+      <td><a href="${escapeHtml(url)}" target="_blank" style="color:#4f6ef7;font-size:12px;">${escapeHtml(truncateUrl(url, 55))}</a></td>
+      <td class="num" style="font-weight:600;">${d.totalCount}</td>
+      <td class="num" style="font-size:11px;${dt === "(空白)" ? "color:#bbb;" : ""}">${dt}</td>
+    </tr>`;
+  });
+
+  tableHtml += `</tbody></table>`;
+  tableHtml += `<div style="font-size:11px;color:#999;margin-top:8px;">共 ${filtered.length} 个唯一URL（筛选前 ${entries.length} 个）</div>`;
+
+  return { html: tableHtml, dateSet };
+}
+
+function showCommonSiteDetail(siteName) {
+  const allData = getCrossPlatformUrlData(siteName);
+  const entries = Object.entries(allData);
+
+  if (entries.length === 0) {
+    document.getElementById("commonSiteTitle").textContent = `🔗 ${siteName} - 暂无网址数据`;
+    document.getElementById("commonSiteBody").innerHTML = `<div class="no-data">该网站暂无跨平台网址数据</div>`;
+    document.getElementById("commonSiteModal").classList.add("show");
+    return;
+  }
+
+  // 覆盖平台标签
+  const coveredPlats = [];
+  for (const p of PLATFORMS) {
+    const um = ps[p].urlMap || {};
+    if (um[siteName] && Object.keys(um[siteName]).length > 0) {
+      coveredPlats.push(PLATFORM_ICONS[p] + PLATFORM_LABELS[p]);
+    }
+  }
+
+  document.getElementById("commonSiteTitle").innerHTML = `🔗 ${escapeHtml(siteName)} <span style="font-weight:400;color:#888;font-size:13px;">— 跨平台网址详情（${entries.length} 个唯一URL）</span>
+    <div style="font-weight:400;font-size:12px;color:#888;margin-top:4px;">覆盖：${coveredPlats.join(" · ")}</div>`;
+
+  // 首次渲染：全选所有日期
+  const { html, dateSet } = renderCommonSiteTable(allData, null);
+  document.getElementById("commonSiteBody").innerHTML = html;
+  document.getElementById("commonSiteModal").classList.add("show");
+
+  // 绑定筛选按钮事件
+  const dateTh = document.getElementById("dateFilterTh");
+  if (dateTh) {
+    dateTh.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openDateFilter(e, allData, dateSet);
+    });
+  }
+}
+
+function closeCommonSiteModal() {
+  document.getElementById("commonSiteModal").classList.remove("show");
+  closeFilterDropdown();
+}
+
+// ==================== 发布时间筛选面板 ====================
+
+function openDateFilter(event, allData, dateSet) {
+  const dropdown = document.getElementById("filterDropdown");
+  const list = document.getElementById("filterList");
+
+  // 获取当前勾选状态
+  const rows = document.querySelectorAll("#commonSiteTable tbody tr");
+  const currentFilter = new Set();
+  rows.forEach((row) => {
+    const dt = row.cells[4].textContent.trim();
+    currentFilter.add(dt);
+  });
+
+  // 按数量降序排列日期
+  const sortedDates = Object.entries(dateSet).sort((a, b) => {
+    if (a[0] === "(空白)") return -1;
+    if (b[0] === "(空白)") return 1;
+    return b[1] - a[1];
+  });
+
+  list.innerHTML = `
+    <div class="filter-item" data-date="__ALL__">
+      <input type="checkbox" id="fi_all" ${currentFilter.size === sortedDates.length ? "checked" : ""}>
+      <label for="fi_all" style="cursor:pointer;">全选</label>
+      <span class="fi-count">(${Object.values(dateSet).reduce((a, b) => a + b, 0)})</span>
+    </div>
+    ${sortedDates.map(([dt, cnt]) => `
+      <div class="filter-item" data-date="${escapeHtml(dt)}">
+        <input type="checkbox" class="fi-date" ${currentFilter.has(dt) ? "checked" : ""}>
+        <span style="cursor:pointer;">${escapeHtml(dt)}</span>
+        <span class="fi-count">(${cnt})</span>
+      </div>
+    `).join("")}
+  `;
+
+  // 全选逻辑
+  list.querySelector("#fi_all").addEventListener("change", function () {
+    const checked = this.checked;
+    list.querySelectorAll(".fi-date").forEach((cb) => { cb.checked = checked; });
+    applyDateFilter(allData);
+  });
+
+  // 单项逻辑
+  list.querySelectorAll(".fi-date").forEach((cb) => {
+    cb.addEventListener("change", () => applyDateFilter(allData));
+  });
+
+  // 定位
+  const rect = event.target.getBoundingClientRect();
+  dropdown.style.left = Math.min(rect.left, window.innerWidth - 220) + "px";
+  dropdown.style.top = (rect.bottom + 4) + "px";
+  dropdown.style.display = "block";
+
+  // 点击外部关闭（延迟绑定避免冒泡）
+  setTimeout(() => {
+    document.addEventListener("click", closeFilterOnOutside);
+  }, 0);
+}
+
+function applyDateFilter(allData) {
+  const checked = document.querySelectorAll(".fi-date:checked");
+  const filterDates = new Set();
+  checked.forEach((cb) => {
+    const parent = cb.closest(".filter-item");
+    if (parent) filterDates.add(parent.dataset.date);
+  });
+
+  const { html } = renderCommonSiteTable(allData, filterDates);
+  document.getElementById("commonSiteBody").innerHTML = html;
+
+  // 重新绑定筛选按钮（dateSet 始终从全量数据计算，保证计数准确）
+  const dateTh = document.getElementById("dateFilterTh");
+  if (dateTh) {
+    dateTh.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const fullDateSet = {};
+      for (const [_, d] of Object.entries(allData)) {
+        const dt = d.publishTime || "(空白)";
+        fullDateSet[dt] = (fullDateSet[dt] || 0) + 1;
+      }
+      openDateFilter(e, allData, fullDateSet);
+    });
+  }
+
+  // 保持下拉面板打开
+}
+
+function closeFilterOnOutside(e) {
+  const dropdown = document.getElementById("filterDropdown");
+  const th = document.getElementById("dateFilterTh");
+  if (!dropdown || !th) return;
+  if (!dropdown.contains(e.target) && e.target !== th) {
+    closeFilterDropdown();
+  }
+}
+
+function closeFilterDropdown() {
+  document.getElementById("filterDropdown").style.display = "none";
+  document.removeEventListener("click", closeFilterOnOutside);
+}
 
 // ==================== Tab 7: 二测统计 ====================
 async function refreshRetestStats() {
