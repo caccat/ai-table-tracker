@@ -752,35 +752,80 @@ async function refreshSummary() {
     return;
   }
 
-  const uploadedPlats = PLATFORMS.filter((p) => platformData[p]);
+  // 查询所有平台的老网站（任意平台标记过即算老网站）
+  let oldSiteNames = new Set();
+  try {
+    const queries = PLATFORMS.map((p) => sb.from("old_sites" + TABLE_SUFFIX).select("site_name").eq("platform", p));
+    const results = await Promise.all(queries);
+    results.forEach((r) => {
+      (r.data || []).forEach((row) => oldSiteNames.add(row.site_name));
+    });
+  } catch (_) { /* 查询失败不影响显示 */ }
+
+  const newSites = commonSites.filter((s) => !oldSiteNames.has(s.name));
+  const oldSites = commonSites.filter((s) => oldSiteNames.has(s.name));
+
+  // 存储数据供切换使用
+  ps._commonNew = newSites;
+  ps._commonOld = oldSites;
+  ps._commonUploadedPlats = PLATFORMS.filter((p) => platformData[p]);
+
+  const uploadedPlats = ps._commonUploadedPlats;
   let tableHtml = `
     <div class="stats-bar">
       <div class="stat-card stat-blue"><div class="num">${commonSites.length}</div><div class="lbl">共同网站</div></div>
+      <div class="stat-card stat-new"><div class="num">${newSites.length}</div><div class="lbl">新网站</div></div>
+      <div class="stat-card stat-old"><div class="num">${oldSites.length}</div><div class="lbl">老网站</div></div>
       <div class="stat-card stat-green"><div class="num">${allNames.size}</div><div class="lbl">全部网站种类</div></div>
-      <div class="stat-card stat-orange"><div class="num">${count}</div><div class="lbl">已上传平台</div></div>
-      <div class="stat-card stat-purple"><div class="num">${commonSites[0]?.platformCount || 0}</div><div class="lbl">最高覆盖</div></div>
     </div>
-    <div class="table-wrap"><table class="data-table">
+    <div class="toggle-bar" style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <span style="font-size:12px;color:#888;">筛选：</span>
+      <button class="btn btn-sm toggle-btn active" data-filter="new" style="font-size:12px;padding:5px 14px;border-radius:16px;">🆕 新网站 (${newSites.length})</button>
+      <button class="btn btn-sm toggle-btn" data-filter="old" style="font-size:12px;padding:5px 14px;border-radius:16px;">📦 老网站 (${oldSites.length})</button>
+    </div>
+    <div class="table-wrap" id="commonTableWrap"><table class="data-table">
       <thead><tr><th style="width:40px;">#</th><th>共同网站</th><th class="num" style="width:70px;">覆盖平台</th>
       ${uploadedPlats.map((p) => `<th class="num" style="width:70px;">${PLATFORM_LABELS[p]}</th>`).join("")}
       <th class="num" style="width:70px;">总次数</th></tr></thead>
-      <tbody>`;
+      <tbody id="commonTableBody"></tbody></table></div>`;
 
-  commonSites.forEach((site, i) => {
+  content.innerHTML = tableHtml;
+
+  // 默认渲染新网站
+  renderCommonTable(ps._commonNew, uploadedPlats);
+
+  // 切换按钮事件
+  content.querySelectorAll(".toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", function () {
+      const filter = this.dataset.filter;
+      content.querySelectorAll(".toggle-btn").forEach((b) => b.classList.remove("active"));
+      this.classList.add("active");
+      const data = filter === "new" ? ps._commonNew : ps._commonOld;
+      renderCommonTable(data, uploadedPlats);
+    });
+  });
+}
+
+/** 渲染共同网站表格 */
+function renderCommonTable(sites, uploadedPlats) {
+  const tbody = document.getElementById("commonTableBody");
+  if (!tbody) return;
+
+  let rows = "";
+  sites.forEach((site, i) => {
     const total = site.details.reduce((s, d) => s + d.count, 0);
     const platformTags = site.details.map((d) => `<span class="tag tag-${d.platform}">${PLATFORM_LABELS[d.platform]} ×${d.count}</span>`).join(" ");
     const cells = uploadedPlats.map((p) => {
       const d = site.details.find((x) => x.platform === p);
       return d ? `<td class="num"><span class="tag tag-${p}">${d.count}</span></td>` : `<td class="num" style="color:#ccc;">-</td>`;
     }).join("");
-    tableHtml += `<tr><td>${i + 1}</td><td><span class="common-site-link" data-sitename="${escapeHtml(site.name)}">${escapeHtml(site.name)}</span><div style="margin-top:3px;">${platformTags}</div></td><td class="num" style="font-size:14px;font-weight:700;color:#4f6ef7;">${site.platformCount}</td>${cells}<td class="num" style="font-weight:700;">${total}</td></tr>`;
+    rows += `<tr><td>${i + 1}</td><td><span class="common-site-link" data-sitename="${escapeHtml(site.name)}">${escapeHtml(site.name)}</span><div style="margin-top:3px;">${platformTags}</div></td><td class="num" style="font-size:14px;font-weight:700;color:#4f6ef7;">${site.platformCount}</td>${cells}<td class="num" style="font-weight:700;">${total}</td></tr>`;
   });
 
-  tableHtml += `</tbody></table></div>`;
-  content.innerHTML = tableHtml;
+  tbody.innerHTML = rows;
 
   // 事件委托：点击共同网站名 → 弹出跨平台网址详情
-  content.querySelectorAll(".common-site-link").forEach((el) => {
+  tbody.querySelectorAll(".common-site-link").forEach((el) => {
     el.addEventListener("click", () => showCommonSiteDetail(el.dataset.sitename));
   });
 }
