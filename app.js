@@ -1,6 +1,6 @@
 /**
  * AI 表格分析工具 - 主逻辑
- * 7 个标签页：豆包/DeepSeek/百度AI/元宝/千问/共同网站/二测统计
+ * 8 个标签页：豆包/DeepSeek/百度AI/元宝/千问/共同网站/平台独有/二测统计
  */
 
 // ==================== 常量 ====================
@@ -110,7 +110,22 @@ let currentUploadData = null; // { platform, file, eCol, cCol, freq, urlMap, fil
   `;
   container.appendChild(tabSummary);
 
-  // Tab 7: 二测统计 + 手动监测
+  // Tab 7: 平台独有新网站
+  const tabUnique = document.createElement("div");
+  tabUnique.className = "tab-panel";
+  tabUnique.id = "tab-unique";
+  tabUnique.innerHTML = `
+    <div class="top-actions" style="margin-bottom:16px;">
+      <button class="btn btn-primary" id="refreshUniqueBtn">🔄 刷新平台独有分析</button>
+      <span style="font-size:12px;color:#888;" id="uniqueStatus"></span>
+    </div>
+    <div id="uniqueContent">
+      <div class="no-data">已上传表格的平台 ≥2 时，自动分析各平台独有的新网站</div>
+    </div>
+  `;
+  container.appendChild(tabUnique);
+
+  // Tab 8: 二测统计 + 手动监测
   const tabRetest = document.createElement("div");
   tabRetest.className = "tab-panel";
   tabRetest.id = "tab-retest";
@@ -146,6 +161,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.getElementById(target).classList.add("active");
 
     if (target === "tab-summary") refreshSummary();
+    if (target === "tab-unique") refreshUniqueSites();
     if (target === "tab-retest") { refreshRetestStats(); loadMonitorList(); }
   });
 });
@@ -703,7 +719,6 @@ function closeSiteDetailModal() {
 
 // ==================== Tab 6: 共同网站分析 ====================
 async function refreshSummary() {
-  console.log("=== refreshSummary 开始执行 ===");
   const statusEl = document.getElementById("summaryStatus");
   const content = document.getElementById("summaryContent");
 
@@ -762,8 +777,6 @@ async function refreshSummary() {
       (r.data || []).forEach((row) => oldSiteNames.add(row.site_name));
     });
   } catch (e) { console.error("查询老网站失败:", e); }
-
-  console.log("老网站总数:", oldSiteNames.size, "共同网站:", commonSites.length, "TABLE_SUFFIX:", typeof TABLE_SUFFIX !== 'undefined' ? `"${TABLE_SUFFIX}"` : "undefined");
 
   const newSites = commonSites.filter((s) => !oldSiteNames.has(s.name));
   const oldSites = commonSites.filter((s) => oldSiteNames.has(s.name));
@@ -834,6 +847,136 @@ function renderCommonTable(sites, uploadedPlats) {
 }
 
 document.getElementById("refreshSummaryBtn").addEventListener("click", refreshSummary);
+
+// ==================== Tab 7: 平台独有新网站 ====================
+async function refreshUniqueSites() {
+  const statusEl = document.getElementById("uniqueStatus");
+  const content = document.getElementById("uniqueContent");
+
+  const platformData = {};
+  let count = 0;
+  for (const p of PLATFORMS) {
+    if (ps[p].freq && Object.keys(ps[p].freq).length > 0) {
+      platformData[p] = Object.keys(ps[p].freq);
+      count++;
+    }
+  }
+
+  if (count < 2) {
+    statusEl.textContent = `已上传 ${count}/5 个平台（需≥2）`;
+    statusEl.style.color = "#e8890c";
+    content.innerHTML = `<div class="no-data">至少需要上传 2 个平台的表格才能分析平台独有网站</div>`;
+    return;
+  }
+
+  // 查询所有平台的老网站
+  let oldSiteNames = new Set();
+  try {
+    const queries = PLATFORMS.map((p) => sb.from("old_sites" + TABLE_SUFFIX).select("site_name").eq("platform", p));
+    const results = await Promise.all(queries);
+    results.forEach((r) => {
+      (r.data || []).forEach((row) => oldSiteNames.add(row.site_name));
+    });
+  } catch (e) { console.error("查询老网站失败:", e); }
+
+  // 统计每个网站出现在哪些平台
+  const sitePlatforms = {}; // { siteName: Set([plat1, plat2, ...]) }
+  for (const p of PLATFORMS) {
+    if (!platformData[p]) continue;
+    platformData[p].forEach((name) => {
+      if (!sitePlatforms[name]) sitePlatforms[name] = new Set();
+      sitePlatforms[name].add(p);
+    });
+  }
+
+  // 平台独有的新网站：只出现在一个平台，且不在 old_sites 中
+  const uniqueByPlat = {};
+  PLATFORMS.forEach((p) => { uniqueByPlat[p] = []; });
+
+  let totalUnique = 0;
+  for (const [name, plats] of Object.entries(sitePlatforms)) {
+    if (plats.size === 1 && !oldSiteNames.has(name)) {
+      const plat = [...plats][0];
+      if (platformData[plat]) {
+        uniqueByPlat[plat].push({
+          name,
+          count: ps[plat].freq[name] || 0,
+          urlCount: Object.keys(ps[plat].urlMap[name] || {}).length,
+        });
+        totalUnique++;
+      }
+    }
+  }
+
+  // 按次数降序排列每个平台
+  PLATFORMS.forEach((p) => {
+    uniqueByPlat[p].sort((a, b) => b.count - a.count);
+  });
+
+  statusEl.textContent = `✅ 平台独有新网站：${totalUnique} 个`;
+  statusEl.style.color = "#10b981";
+
+  const uploadedPlats = PLATFORMS.filter((p) => platformData[p]);
+
+  let html = `<div class="stats-bar">
+    <div class="stat-card stat-purple"><div class="num">${totalUnique}</div><div class="lbl">独有新网站总数</div></div>
+    ${uploadedPlats.map((p) => `<div class="stat-card stat-blue"><div class="num">${uniqueByPlat[p].length}</div><div class="lbl">${PLATFORM_LABELS[p]}</div></div>`).join("")}
+  </div>`;
+
+  if (totalUnique === 0) {
+    html += `<div class="no-data">🎉 所有新网站都至少在 2 个平台出现，没有平台独有的新网站</div>`;
+    content.innerHTML = html;
+    return;
+  }
+
+  // 按平台展示
+  for (const p of uploadedPlats) {
+    const sites = uniqueByPlat[p];
+    if (sites.length === 0) {
+      html += `<div style="margin-bottom:16px;padding:12px 16px;background:#fafbfc;border-radius:8px;border:1px solid #e8ebf0;">
+        <div style="font-size:14px;font-weight:700;color:#888;">${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]} <span style="font-weight:400;font-size:12px;">无独有新网站</span></div>
+      </div>`;
+      continue;
+    }
+
+    html += `<div style="margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px;padding:8px 14px;background:#f5f3ff;border-radius:8px;display:flex;align-items:center;gap:8px;">
+        ${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]}
+        <span class="section-badge">${sites.length} 个独有新网站</span>
+        <button class="btn btn-outline btn-xs copy-unique-btn" data-platform="${p}" style="margin-left:auto;">📋 复制列表</button>
+      </div>
+      <div class="table-wrap"><table class="data-table" id="uniqueTable-${p}">
+        <thead><tr><th style="width:40px;">#</th><th>网站名称</th><th class="num" style="width:70px;">次数</th><th class="num" style="width:70px;">唯一URL</th></tr></thead>
+        <tbody>`;
+
+    sites.forEach((site, i) => {
+      html += `<tr>
+        <td>${i + 1}</td>
+        <td><strong>${escapeHtml(site.name)}</strong></td>
+        <td class="num">${site.count}</td>
+        <td class="num">${site.urlCount}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div></div>`;
+  }
+
+  content.innerHTML = html;
+
+  // 复制按钮事件
+  content.querySelectorAll(".copy-unique-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const plat = btn.dataset.platform;
+      const list = uniqueByPlat[plat].map((s) => s.name).join("\n");
+      navigator.clipboard.writeText(list).then(() => {
+        btn.textContent = "✅ 已复制!";
+        setTimeout(() => { btn.textContent = "📋 复制列表"; }, 1500);
+      });
+    });
+  });
+}
+
+document.getElementById("refreshUniqueBtn").addEventListener("click", refreshUniqueSites);
 
 // ==================== 共同网站跨平台网址弹窗 ====================
 
@@ -1257,4 +1400,4 @@ PLATFORMS.forEach((p) => {
 });
 
 console.log("✅ AI 表格分析工具已就绪");
-console.log("📌 7个标签页：豆包 | DeepSeek | 百度AI | 元宝 | 千问 | 共同网站 | 二测统计");
+console.log("📌 8个标签页：豆包 | DeepSeek | 百度AI | 元宝 | 千问 | 共同网站 | 平台独有 | 二测统计");
