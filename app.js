@@ -958,7 +958,7 @@ async function refreshUniqueSites() {
     sites.forEach((site, i) => {
       html += `<tr>
         <td>${i + 1}</td>
-        <td><strong>${escapeHtml(site.name)}</strong></td>
+        <td><span class="common-site-link" data-sitename="${escapeHtml(site.name)}">${escapeHtml(site.name)}</span></td>
         <td class="num">${site.count}</td>
         <td class="num">${site.urlCount}</td>
       </tr>`;
@@ -982,6 +982,11 @@ async function refreshUniqueSites() {
       const copyBtn = content.querySelector(".copy-unique-btn");
       if (copyBtn) copyBtn.dataset.platform = plat;
     });
+  });
+
+  // 点击网站名 → 跨平台网址弹窗
+  content.querySelectorAll(".common-site-link").forEach((el) => {
+    el.addEventListener("click", () => showCommonSiteDetail(el.dataset.sitename));
   });
 
   // 复制按钮事件
