@@ -929,23 +929,29 @@ async function refreshUniqueSites() {
     return;
   }
 
-  // 按平台展示
+  // 平台子 Tab 切换按钮
+  const platsWithData = uploadedPlats.filter((p) => uniqueByPlat[p].length > 0);
+  const defaultPlat = platsWithData[0];
+
+  html += `<div style="display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:#888;font-weight:500;">选择平台：</span>`;
+  for (const p of uploadedPlats) {
+    const n = uniqueByPlat[p].length;
+    if (n === 0) {
+      html += `<button class="unique-plat-tab" data-plat="${p}" disabled style="opacity:0.4;cursor:not-allowed;">${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]} (0)</button>`;
+    } else {
+      html += `<button class="unique-plat-tab${p === defaultPlat ? " active" : ""}" data-plat="${p}">${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]} <span style="font-size:11px;opacity:0.7;">(${n})</span></button>`;
+    }
+  }
+  html += `<button class="btn btn-outline btn-xs copy-unique-btn" data-platform="${defaultPlat}" style="margin-left:auto;">📋 复制列表</button>`;
+  html += `</div>`;
+
+  // 所有平台的表格数据（用 display:none/block 切换）
   for (const p of uploadedPlats) {
     const sites = uniqueByPlat[p];
-    if (sites.length === 0) {
-      html += `<div style="margin-bottom:16px;padding:12px 16px;background:#fafbfc;border-radius:8px;border:1px solid #e8ebf0;">
-        <div style="font-size:14px;font-weight:700;color:#888;">${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]} <span style="font-weight:400;font-size:12px;">无独有新网站</span></div>
-      </div>`;
-      continue;
-    }
-
-    html += `<div style="margin-bottom:20px;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:8px;padding:8px 14px;background:#f5f3ff;border-radius:8px;display:flex;align-items:center;gap:8px;">
-        ${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]}
-        <span class="section-badge">${sites.length} 个独有新网站</span>
-        <button class="btn btn-outline btn-xs copy-unique-btn" data-platform="${p}" style="margin-left:auto;">📋 复制列表</button>
-      </div>
-      <div class="table-wrap"><table class="data-table" id="uniqueTable-${p}">
+    const show = p === defaultPlat ? "" : "display:none;";
+    html += `<div class="unique-plat-panel" data-plat="${p}" style="${show}margin-top:12px;">
+      <div class="table-wrap"><table class="data-table">
         <thead><tr><th style="width:40px;">#</th><th>网站名称</th><th class="num" style="width:70px;">次数</th><th class="num" style="width:70px;">唯一URL</th></tr></thead>
         <tbody>`;
 
@@ -963,17 +969,33 @@ async function refreshUniqueSites() {
 
   content.innerHTML = html;
 
-  // 复制按钮事件
-  content.querySelectorAll(".copy-unique-btn").forEach((btn) => {
+  // 平台子 Tab 切换事件
+  content.querySelectorAll(".unique-plat-tab:not([disabled])").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const plat = btn.dataset.platform;
-      const list = uniqueByPlat[plat].map((s) => s.name).join("\n");
-      navigator.clipboard.writeText(list).then(() => {
-        btn.textContent = "✅ 已复制!";
-        setTimeout(() => { btn.textContent = "📋 复制列表"; }, 1500);
-      });
+      const plat = btn.dataset.plat;
+      content.querySelectorAll(".unique-plat-tab").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      content.querySelectorAll(".unique-plat-panel").forEach((p) => p.style.display = "none");
+      const panel = content.querySelector(`.unique-plat-panel[data-plat="${plat}"]`);
+      if (panel) panel.style.display = "";
+      // 更新复制按钮的 platform
+      const copyBtn = content.querySelector(".copy-unique-btn");
+      if (copyBtn) copyBtn.dataset.platform = plat;
     });
   });
+
+  // 复制按钮事件
+  const copyBtn = content.querySelector(".copy-unique-btn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const plat = copyBtn.dataset.platform;
+      const list = uniqueByPlat[plat].map((s) => s.name).join("\n");
+      navigator.clipboard.writeText(list).then(() => {
+        copyBtn.textContent = "✅ 已复制!";
+        setTimeout(() => { copyBtn.textContent = "📋 复制列表"; }, 1500);
+      });
+    });
+  }
 }
 
 document.getElementById("refreshUniqueBtn").addEventListener("click", refreshUniqueSites);
