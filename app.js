@@ -703,6 +703,7 @@ function closeSiteDetailModal() {
 
 // ==================== Tab 6: 共同网站分析 ====================
 async function refreshSummary() {
+  console.log("=== refreshSummary 开始执行 ===");
   const statusEl = document.getElementById("summaryStatus");
   const content = document.getElementById("summaryContent");
 
@@ -760,7 +761,9 @@ async function refreshSummary() {
     results.forEach((r) => {
       (r.data || []).forEach((row) => oldSiteNames.add(row.site_name));
     });
-  } catch (_) { /* 查询失败不影响显示 */ }
+  } catch (e) { console.error("查询老网站失败:", e); }
+
+  console.log("老网站总数:", oldSiteNames.size, "共同网站:", commonSites.length, "TABLE_SUFFIX:", typeof TABLE_SUFFIX !== 'undefined' ? `"${TABLE_SUFFIX}"` : "undefined");
 
   const newSites = commonSites.filter((s) => !oldSiteNames.has(s.name));
   const oldSites = commonSites.filter((s) => oldSiteNames.has(s.name));
