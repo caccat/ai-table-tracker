@@ -1,6 +1,6 @@
 /**
  * AI 表格分析工具 - 主逻辑
- * 8 个标签页：豆包/DeepSeek/百度AI/元宝/千问/共同网站/平台独有/二测统计
+ * 9 个标签页：豆包/DeepSeek/百度AI/元宝/千问/共同网站/平台独有/篇均采集/二测统计
  */
 
 // ==================== 常量 ====================
@@ -125,7 +125,22 @@ let currentUploadData = null; // { platform, file, eCol, cCol, freq, urlMap, fil
   `;
   container.appendChild(tabUnique);
 
-  // Tab 8: 二测统计 + 手动监测
+  // Tab 8: 篇均采集次数
+  const tabAvgFreq = document.createElement("div");
+  tabAvgFreq.className = "tab-panel";
+  tabAvgFreq.id = "tab-avgfreq";
+  tabAvgFreq.innerHTML = `
+    <div class="top-actions" style="margin-bottom:16px;">
+      <button class="btn btn-primary" id="refreshAvgFreqBtn">🔄 刷新篇均采集分析</button>
+      <span style="font-size:12px;color:#888;" id="avgFreqStatus"></span>
+    </div>
+    <div id="avgFreqContent">
+      <div class="no-data">已上传表格的平台 ≥1 时，自动分析各平台网站的篇均采集次数</div>
+    </div>
+  `;
+  container.appendChild(tabAvgFreq);
+
+  // Tab 9: 二测统计 + 手动监测
   const tabRetest = document.createElement("div");
   tabRetest.className = "tab-panel";
   tabRetest.id = "tab-retest";
@@ -162,6 +177,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 
     if (target === "tab-summary") refreshSummary();
     if (target === "tab-unique") refreshUniqueSites();
+    if (target === "tab-avgfreq") refreshAvgFreq();
     if (target === "tab-retest") { refreshRetestStats(); loadMonitorList(); }
   });
 });
@@ -1005,6 +1021,151 @@ async function refreshUniqueSites() {
 
 document.getElementById("refreshUniqueBtn").addEventListener("click", refreshUniqueSites);
 
+// ==================== Tab 8: 篇均采集次数分析 ====================
+async function refreshAvgFreq() {
+  const statusEl = document.getElementById("avgFreqStatus");
+  const content = document.getElementById("avgFreqContent");
+
+  // 收集有数据的平台
+  const platformData = {};
+  let count = 0;
+  for (const p of PLATFORMS) {
+    if (ps[p].freq && Object.keys(ps[p].freq).length > 0) {
+      platformData[p] = true;
+      count++;
+    }
+  }
+
+  if (count === 0) {
+    statusEl.textContent = "未上传任何平台表格";
+    statusEl.style.color = "#e8890c";
+    content.innerHTML = `<div class="no-data">请先上传至少 1 个平台的表格</div>`;
+    return;
+  }
+
+  // 计算每个网站的篇均采集次数
+  // 篇均 = freq[name] / Object.keys(urlMap[name]).length
+  const avgByPlat = {};
+  PLATFORMS.forEach((p) => { avgByPlat[p] = []; });
+
+  let totalSites = 0;
+  for (const p of PLATFORMS) {
+    if (!platformData[p]) continue;
+    const freq = ps[p].freq || {};
+    const urlMap = ps[p].urlMap || {};
+    for (const [name, totalCount] of Object.entries(freq)) {
+      const articleCount = Object.keys(urlMap[name] || {}).length;
+      if (articleCount === 0) continue;
+      const avg = totalCount / articleCount;
+      avgByPlat[p].push({ name, totalCount, articleCount, avg });
+    }
+    // 按篇均降序排列
+    avgByPlat[p].sort((a, b) => b.avg - a.avg);
+    totalSites += avgByPlat[p].length;
+  }
+
+  statusEl.textContent = `✅ 已分析 ${totalSites} 个网站的篇均采集次数`;
+  statusEl.style.color = "#10b981";
+
+  const uploadedPlats = PLATFORMS.filter((p) => platformData[p]);
+  const platsWithData = uploadedPlats.filter((p) => avgByPlat[p].length > 0);
+  const defaultPlat = platsWithData[0];
+
+  // 统计概览
+  let overallAvg = 0, overallTotal = 0;
+  for (const p of uploadedPlats) {
+    for (const s of avgByPlat[p]) {
+      overallAvg += s.avg;
+      overallTotal++;
+    }
+  }
+  overallAvg = overallTotal > 0 ? (overallAvg / overallTotal) : 0;
+
+  let html = `<div class="stats-bar">
+    <div class="stat-card stat-purple"><div class="num">${overallAvg.toFixed(2)}</div><div class="lbl">整体篇均采集次数</div></div>
+    <div class="stat-card stat-blue"><div class="num">${totalSites}</div><div class="lbl">分析网站总数</div></div>
+    ${uploadedPlats.map((p) => `<div class="stat-card stat-green"><div class="num">${avgByPlat[p].length}</div><div class="lbl">${PLATFORM_LABELS[p]}</div></div>`).join("")}
+  </div>`;
+
+  if (platsWithData.length === 0) {
+    html += `<div class="no-data">暂无数据</div>`;
+    content.innerHTML = html;
+    return;
+  }
+
+  // 平台子 Tab 切换
+  html += `<div style="display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:#888;font-weight:500;">选择平台：</span>`;
+  for (const p of uploadedPlats) {
+    const n = avgByPlat[p].length;
+    if (n === 0) {
+      html += `<button class="avgfreq-plat-tab" data-plat="${p}" disabled style="opacity:0.4;cursor:not-allowed;">${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]} (0)</button>`;
+    } else {
+      html += `<button class="avgfreq-plat-tab${p === defaultPlat ? " active" : ""}" data-plat="${p}">${PLATFORM_ICONS[p]} ${PLATFORM_LABELS[p]} <span style="font-size:11px;opacity:0.7;">(${n})</span></button>`;
+    }
+  }
+  html += `<button class="btn btn-outline btn-xs copy-avgfreq-btn" data-platform="${defaultPlat}" style="margin-left:auto;">📋 复制列表</button>`;
+  html += `</div>`;
+
+  // 各平台表格
+  for (const p of uploadedPlats) {
+    const sites = avgByPlat[p];
+    const show = p === defaultPlat ? "" : "display:none;";
+    html += `<div class="avgfreq-plat-panel" data-plat="${p}" style="${show}margin-top:12px;">
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th style="width:40px;">#</th><th>网站名称</th><th class="num" style="width:90px;">篇均采集次数</th><th class="num" style="width:80px;">总采集次数</th><th class="num" style="width:80px;">采集篇数</th></tr></thead>
+        <tbody>`;
+
+    sites.forEach((site, i) => {
+      html += `<tr>
+        <td>${i + 1}</td>
+        <td><span class="common-site-link" data-sitename="${escapeHtml(site.name)}">${escapeHtml(site.name)}</span></td>
+        <td class="num" style="font-size:14px;font-weight:700;color:#4f6ef7;">${site.avg.toFixed(2)}</td>
+        <td class="num">${site.totalCount}</td>
+        <td class="num">${site.articleCount}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div></div>`;
+  }
+
+  content.innerHTML = html;
+
+  // 平台子 Tab 切换
+  content.querySelectorAll(".avgfreq-plat-tab:not([disabled])").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const plat = btn.dataset.plat;
+      content.querySelectorAll(".avgfreq-plat-tab").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      content.querySelectorAll(".avgfreq-plat-panel").forEach((p) => p.style.display = "none");
+      const panel = content.querySelector(`.avgfreq-plat-panel[data-plat="${plat}"]`);
+      if (panel) panel.style.display = "";
+      const copyBtn = content.querySelector(".copy-avgfreq-btn");
+      if (copyBtn) copyBtn.dataset.platform = plat;
+    });
+  });
+
+  // 点击网站名 → 跨平台网址弹窗
+  content.querySelectorAll(".common-site-link").forEach((el) => {
+    el.addEventListener("click", () => showCommonSiteDetail(el.dataset.sitename));
+  });
+
+  // 复制按钮
+  const copyBtn = content.querySelector(".copy-avgfreq-btn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const plat = copyBtn.dataset.platform;
+      const list = avgByPlat[plat].map((s) => `${s.name}\t篇均${s.avg.toFixed(2)}\t共${s.totalCount}次\t${s.articleCount}篇`).join("\n");
+      navigator.clipboard.writeText(list).then(() => {
+        copyBtn.textContent = "✅ 已复制!";
+        setTimeout(() => { copyBtn.textContent = "📋 复制列表"; }, 1500);
+      });
+    });
+  }
+}
+
+document.getElementById("refreshAvgFreqBtn").addEventListener("click", refreshAvgFreq);
+
 // ==================== 共同网站跨平台网址弹窗 ====================
 
 /** 聚合某个网站在所有平台的 URL 数据 */
@@ -1427,4 +1588,4 @@ PLATFORMS.forEach((p) => {
 });
 
 console.log("✅ AI 表格分析工具已就绪");
-console.log("📌 8个标签页：豆包 | DeepSeek | 百度AI | 元宝 | 千问 | 共同网站 | 平台独有 | 二测统计");
+console.log("📌 9个标签页：豆包 | DeepSeek | 百度AI | 元宝 | 千问 | 共同网站 | 平台独有 | 篇均采集 | 二测统计");

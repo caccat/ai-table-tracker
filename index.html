@@ -19,15 +19,20 @@
     .tab-btn:hover{color:#4f6ef7;background:#f8f9ff}
     .tab-btn.active{color:#4f6ef7;font-weight:600;background:#f0f3ff}
     .tab-btn.active::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:36%;height:3px;background:#4f6ef7;border-radius:3px 3px 0 0}
-    .tab-btn.tab-summary,.tab-btn.tab-unique,.tab-btn.tab-retest{color:#e8890c}
-    .tab-btn.tab-summary:hover,.tab-btn.tab-unique:hover,.tab-btn.tab-retest:hover{color:#e8890c;background:#fffaf0}
-    .tab-btn.tab-summary.active,.tab-btn.tab-unique.active,.tab-btn.tab-retest.active{color:#e8890c;background:#fff7e6}
-    .tab-btn.tab-summary.active::after,.tab-btn.tab-unique.active::after,.tab-btn.tab-retest.active::after{background:#e8890c}
+    .tab-btn.tab-summary,.tab-btn.tab-unique,.tab-btn.tab-avgfreq,.tab-btn.tab-retest{color:#e8890c}
+    .tab-btn.tab-summary:hover,.tab-btn.tab-unique:hover,.tab-btn.tab-avgfreq:hover,.tab-btn.tab-retest:hover{color:#e8890c;background:#fffaf0}
+    .tab-btn.tab-summary.active,.tab-btn.tab-unique.active,.tab-btn.tab-avgfreq.active,.tab-btn.tab-retest.active{color:#e8890c;background:#fff7e6}
+    .tab-btn.tab-summary.active::after,.tab-btn.tab-unique.active::after,.tab-btn.tab-avgfreq.active::after,.tab-btn.tab-retest.active::after{background:#e8890c}
 
     /* 平台独有子Tab */
     .unique-plat-tab{padding:7px 14px;border:1px solid #dde1e8;border-radius:8px;background:#fff;font-size:12.5px;font-weight:500;color:#555;cursor:pointer;transition:all 0.15s}
     .unique-plat-tab:hover{border-color:#4f6ef7;color:#4f6ef7;background:#f8f9ff}
     .unique-plat-tab.active{border-color:#4f6ef7;color:#fff;background:#4f6ef7;font-weight:600}
+
+    /* 篇均采集子Tab */
+    .avgfreq-plat-tab{padding:7px 14px;border:1px solid #dde1e8;border-radius:8px;background:#fff;font-size:12.5px;font-weight:500;color:#555;cursor:pointer;transition:all 0.15s}
+    .avgfreq-plat-tab:hover{border-color:#4f6ef7;color:#4f6ef7;background:#f8f9ff}
+    .avgfreq-plat-tab.active{border-color:#4f6ef7;color:#fff;background:#4f6ef7;font-weight:600}
 
     /* Tab Content */
     .tabs-content{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);min-height:500px;overflow:hidden}
@@ -219,6 +224,7 @@
       <button class="tab-btn" data-tab="tab-qianwen">❓ 千问</button>
       <button class="tab-btn tab-summary" data-tab="tab-summary">📋 共同网站</button>
       <button class="tab-btn tab-unique" data-tab="tab-unique">🔷 平台独有</button>
+      <button class="tab-btn tab-avgfreq" data-tab="tab-avgfreq">📈 篇均采集</button>
       <button class="tab-btn tab-retest" data-tab="tab-retest">📊 二测统计</button>
     </div>
 
